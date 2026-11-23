@@ -1,0 +1,44 @@
+# Ulož jako .github/workflows/update.yml
+name: Aktualizace dat ze seznam-autobusu
+
+on:
+  schedule:
+    - cron: '30 4 * * *'   # každý den ve 4:30 UTC
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Plný průchod (FULL=1, např. první běh)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Stáhnout nové fotky
+        env:
+          # Repository variables: Settings -> Secrets and variables -> Actions -> Variables
+          LIST_URL: ${{ vars.LIST_URL }}
+          MAX_PAGES: ${{ vars.MAX_PAGES }}
+          CONTACT: ${{ vars.CONTACT }}
+          FULL: ${{ inputs.full && '1' || '0' }}
+        run: node scraper.mjs
+
+      - name: Commit změn
+        run: |
+          git config user.name "motfot-bot"
+          git config user.email "motfot-bot@users.noreply.github.com"
+          git add data.json seen.json
+          git diff --cached --quiet || git commit -m "Aktualizace dat $(date -u +%F)"
+          git push
